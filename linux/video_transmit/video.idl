@@ -1,0 +1,29 @@
+module video {
+  typedef sequence<char> OctetSeq;
+  @topic
+  struct Frame {
+    @key
+    long time_id;
+    long frame_id;
+    string from;
+    OctetSeq frame_bytes;
+    long rows;
+    long cols;
+    long channels;
+  };
+
+  enum OperationAction {
+    FORWARD,
+    BACK,
+    TURN_LEFT,
+    TURN_RIGHT
+  };
+
+  @topic
+  struct Operation {
+    @key
+    long operation_id;
+    long opera_seq_num;
+    OperationAction action;
+  };
+};
