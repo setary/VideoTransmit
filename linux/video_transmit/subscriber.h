@@ -43,5 +43,6 @@ private:
     
     private:
       video::Frame frame_;
+      std::vector<uint8_t> jpeg_data_;
   } listener_;
 };
