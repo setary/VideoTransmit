@@ -42,7 +42,7 @@ bool VideoSubscriber::enable() {
     return false;
   }
 
-  topic_ = participant_->create_topic("VedioFrame", "video::Frame", TOPIC_QOS_DEFAULT);
+  topic_ = participant_->create_topic("VideoFrame", "video::Frame", TOPIC_QOS_DEFAULT);
   if (topic_ == nullptr) {
     printf("create topic failed.\n");
     return false;
