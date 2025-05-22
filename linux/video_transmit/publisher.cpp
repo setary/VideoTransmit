@@ -1,5 +1,7 @@
 #include <thread>
 #include <vector>
+#include <arpa/inet.h>
+#include <algorithm>
 
 #include <fastdds/dds/domain/DomainParticipantFactory.hpp>
 #include <fastdds/dds/publisher/Publisher.hpp>
@@ -13,6 +15,9 @@ using namespace eprosima::fastdds::dds;
 
 static int deviceID = 0;          // 0 = open default camera
 static int apiID = cv::CAP_ANY;   // 0 = autodetect default API
+
+static const int MTU = 1400;
+static const uint32_t TS_INC = 90000 / 30; // 3000 (90kHz时钟)
 
 
 VideoPublisher::VideoPublisher()
@@ -36,7 +41,8 @@ bool VideoPublisher::enable() {
   }
   printf("open camera success.\n");
 
-  frame_.frame_id(0);
+  cap_.set(cv::CAP_PROP_FRAME_WIDTH, 640);
+  cap_.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
 
   auto factory = DomainParticipantFactory::get_instance();
 
@@ -89,34 +95,65 @@ bool VideoPublisher::disable() {
 }
 
 bool VideoPublisher::capture() {
-  bool ret = cap_.read(image_);
-  if (!ret || image_.empty()) {
+  cv::Mat frame;
+  bool ret = cap_.read(frame);
+  if (!ret || frame.empty()) {
     printf("no frame has been grabbed, camera is disconnected or there is no frame.\n");
     return false;
   }
+  cv::cvtColor(frame, image_, cv::COLOR_BGR2YUV_IYUV); // 图像预处理，保持BGR格式
   return true;
 }
 
-void VideoPublisher::compress() {
-  std::vector<uint8_t> img_encode;
+bool VideoPublisher::encode() {
   std::vector<int> quality;
   quality.push_back(cv::IMWRITE_JPEG_QUALITY);
   quality.push_back(50);  // compression ratio is 50%
-  cv::imencode(".jpg", image_, img_encode, quality);
-
-  std::vector<char> img_cp;
-  for(int i = 0; i < img_encode.size(); i++) {
-    img_cp[i] = img_encode[i];
-  }
-  frame_.frame_bytes(img_cp);
+  if (!cv::imencode(".jpg", image_, jpeg_data_, quality)) {
+    printf("encode jpeg failed.\n");
+    return false;
+  } 
+  return true;
 }
 
-void VideoPublisher::encode() {
+int VideoPublisher::rtpPack(int offset) {
+  const int JPEG_HDR_SIZE = sizeof(JPEGHeader);
+  const int RTP_HDR_SIZE = sizeof(RTPHeader);
+  uint32_t total_size = jpeg_data_.size();
 
+  int payload_size = std::min(MTU, (int)total_size - offset);
+  rtp_pkt_.resize(RTP_HDR_SIZE + JPEG_HDR_SIZE + payload_size);
+
+  // 填充RTP头部
+  RTPHeader* rtp_hdr = (RTPHeader*)rtp_pkt_.data();
+  memset(rtp_hdr, 0, RTP_HDR_SIZE);
+  rtp_hdr->version = 2;
+  rtp_hdr->payload_type = 26; // 静态JPEG类型
+  rtp_hdr->marker = (offset + payload_size == total_size) ? 1 : 0;
+  rtp_hdr->seq_no = htons(seq_no_++);
+  rtp_hdr->timestamp = htonl(timestamp_);
+  rtp_hdr->ssrc = htonl(0x12345678); // 随机SSRC[citation:12]
+
+  // 填充JPEG头部
+  JPEGHeader* jpeg_hdr = (JPEGHeader*)(rtp_pkt_.data() + RTP_HDR_SIZE);
+  jpeg_hdr->type_specific = 0;
+  jpeg_hdr->jpeg_type = 0;    // Baseline JPEG
+  jpeg_hdr->q = 0;            // 默认量化表
+  jpeg_hdr->width = 640 / 8;  // 80
+  jpeg_hdr->height = 480 / 8; // 60
+  uint32_t offset_be = htonl(offset << 8); // 转换为24位
+  memcpy(jpeg_hdr->offset, ((uint8_t*)&offset_be) + 1, 3); // 取后3字节
+
+  // 拷贝JPEG数据
+  memcpy(rtp_pkt_.data() + RTP_HDR_SIZE + JPEG_HDR_SIZE, 
+        jpeg_data_.data() + offset, payload_size);
+
+  return offset + payload_size;
 }
 
-bool VideoPublisher::publish() {
+bool VideoPublisher::publish(uint8_t* data, int dataLen) {
   frame_.frame_id(frame_.frame_id() + 1);
+  frame_.frame_bytes(std::vector<char>(data, data + dataLen));
   writer_->write(&frame_);
   return true;
 }
@@ -125,14 +162,20 @@ void VideoPublisher::runThread() {
   while (true) {
     if (!capture()) {
       printf("grab image failed.\n");
-      break;
+      continue;
     }
 
-    compress();
+    if (!encode()) {
+      printf("encode frame failed, drop this frame.\n");
+      continue;
+    }
 
-    encode();
-
-    publish();
+    int offset = 0;
+    while (offset < jpeg_data_.size()) {
+      offset = rtpPack(offset);
+      publish(rtp_pkt_.data(), rtp_pkt_.size());
+      timestamp_ += TS_INC;
+    }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   }
