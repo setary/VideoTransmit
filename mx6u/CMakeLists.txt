@@ -5,8 +5,8 @@ project(VideoTransmit VERSION 1 LANGUAGES C CXX)
 link_directories(${CMAKE_SOURCE_DIR}/cyclonedds/lib)
 include_directories(${CMAKE_SOURCE_DIR}/cyclonedds/include)
 
-link_directories(${CMAKE_SOURCE_DIR}/opencv/lib)
-include_directories(${CMAKE_SOURCE_DIR}/opencv/include)
+#link_directories(${CMAKE_SOURCE_DIR}/opencv/lib)
+#include_directories(${CMAKE_SOURCE_DIR}/opencv/include)
 
 file(GLOB VEDIO_TRANSMIT_SOURCES_C "*.c")
 file(GLOB VEDIO_TRANSMIT_SOURCES_CPP "*.cpp")

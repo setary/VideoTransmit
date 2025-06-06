@@ -6,7 +6,7 @@
 #include "publisher.h"
 
 static int deviceID = 0;          // 0 = open default camera
-static int apiID = cv::CAP_ANY;   // 0 = autodetect default API
+static int apiID = 0;   // 0 = autodetect default API
 
 static const int MTU = 1400;
 static const uint32_t TS_INC = 90000 / 30; // 3000 (90kHz时钟)
@@ -22,7 +22,7 @@ VideoPublisher::~VideoPublisher() {
 }
 
 bool VideoPublisher::enable() {
-  cap_.open(deviceID, apiID);
+  cap_.open(deviceID + apiID);
   if (cap_.isOpened()) {
     printf("unable to open the camera.\n");
     return false;
