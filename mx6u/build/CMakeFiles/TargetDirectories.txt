@@ -1,0 +1,3 @@
+/home/mi/data/code/personal/VideoTransmit/mx6u/build/CMakeFiles/VideoTransmit.dir
+/home/mi/data/code/personal/VideoTransmit/mx6u/build/CMakeFiles/edit_cache.dir
+/home/mi/data/code/personal/VideoTransmit/mx6u/build/CMakeFiles/rebuild_cache.dir
