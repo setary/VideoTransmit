@@ -1,0 +1,3 @@
+linux run on ubuntu, it use fastdds for communication
+mx6u run on mx6u, it use cyclonedds for communication
+x86_64 run on ubuntu, it use cyclonedds for communication
