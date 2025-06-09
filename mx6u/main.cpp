@@ -6,11 +6,15 @@
 
 int main(int argc, char** argv) {
   int type = 1; // 1 is publisher; 2 is subscriber
-  if (argc) {
+  int camera_id = 0;
+  if (argc > 1) {
     if (strcmp("publisher", argv[1]) == 0) {
       type = 1;
     } else if (strcmp("subscriber", argv[1]) == 0) {
       type = 2;
+    }
+    if (argc == 3) {
+      camera_id = atoi(argv[2]);
     }
   }
 
@@ -20,7 +24,7 @@ int main(int argc, char** argv) {
   {
     printf("this is a publisher.\n");
     VideoPublisher pub;
-    pub.enable();
+    pub.enable(camera_id);
     pub.run();
   }
     break;

@@ -38,7 +38,7 @@ public:
   VideoPublisher();
   ~VideoPublisher();
 
-  bool enable();
+  bool enable(int camera_id);
 
   bool disable();
 
