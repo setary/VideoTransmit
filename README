@@ -1,3 +1,5 @@
 linux run on ubuntu, it use fastdds for communication
 mx6u run on mx6u, it use cyclonedds for communication
 x86_64 run on ubuntu, it use cyclonedds for communication
+windows run on windows, it use cyclonedds for communication.
+  opencv download from https://opencv.org/releases/page/2/ opencv-3.4.16

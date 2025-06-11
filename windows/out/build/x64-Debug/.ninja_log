@@ -1,0 +1,5 @@
+# ninja log v5
+1	1820	7713312540756404	CMakeFiles/VideoTransmit.dir/video.c.obj	6cb1fbeedaf3670c
+244	3304	7713312556119874	CMakeFiles/VideoTransmit.dir/main.cpp.obj	c3dedd2b59a66392
+593	3311	7713312556234625	CMakeFiles/VideoTransmit.dir/subscriber.cpp.obj	ed4e6db866994c0b
+3311	7366	7713312594553661	VideoTransmit.exe	91e4035106c1956b

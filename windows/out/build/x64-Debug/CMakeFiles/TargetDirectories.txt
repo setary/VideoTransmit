@@ -1,0 +1,4 @@
+D:/cpp_workspace/VideoTransmit/windows/out/build/x64-Debug/CMakeFiles/video_lib_generate.dir
+D:/cpp_workspace/VideoTransmit/windows/out/build/x64-Debug/CMakeFiles/VideoTransmit.dir
+D:/cpp_workspace/VideoTransmit/windows/out/build/x64-Debug/CMakeFiles/edit_cache.dir
+D:/cpp_workspace/VideoTransmit/windows/out/build/x64-Debug/CMakeFiles/rebuild_cache.dir
