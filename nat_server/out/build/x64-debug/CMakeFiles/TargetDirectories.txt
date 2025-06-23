@@ -1,0 +1,3 @@
+D:/cpp_workspace/VideoTransmit/nat_server/out/build/x64-debug/CMakeFiles/nat_server.dir
+D:/cpp_workspace/VideoTransmit/nat_server/out/build/x64-debug/CMakeFiles/edit_cache.dir
+D:/cpp_workspace/VideoTransmit/nat_server/out/build/x64-debug/CMakeFiles/rebuild_cache.dir
