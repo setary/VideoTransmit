@@ -11,8 +11,6 @@ static const uint32_t TS_INC = 90000 / 30; // 3000 (90kHz时钟)
 
 
 VideoPublisher::VideoPublisher() {
-  seq_no_ = 0;
-  timestamp_ = 0;
 }
 
 VideoPublisher::~VideoPublisher() {
@@ -27,9 +25,6 @@ bool VideoPublisher::enable(int camera_id) {
     return false;
   }
   printf("open camera success.\n");
-
-  cap_.set(cv::CAP_PROP_FRAME_WIDTH, 640);
-  cap_.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
 
   participant_ = dds_create_participant(DDS_DOMAIN_DEFAULT, NULL, NULL);
   if (participant_ < 0) {
@@ -63,13 +58,11 @@ bool VideoPublisher::disable() {
 }
 
 bool VideoPublisher::capture() {
-  cv::Mat frame;
-  bool ret = cap_.read(frame);
-  if (!ret || frame.empty()) {
+  bool ret = cap_.read(image_);
+  if (!ret || image_.empty()) {
     printf("no frame has been grabbed, camera is disconnected or there is no frame.\n");
     return false;
   }
-  cv::cvtColor(frame, image_, cv::COLOR_BGR2YUV_IYUV); // 图像预处理，保持BGR格式
   return true;
 }
 
@@ -82,41 +75,6 @@ bool VideoPublisher::encode() {
     return false;
   }
   return true;
-}
-
-int VideoPublisher::rtpPack(int offset) {
-  const int JPEG_HDR_SIZE = sizeof(JPEGHeader);
-  const int RTP_HDR_SIZE = sizeof(RTPHeader);
-  uint32_t total_size = jpeg_data_.size();
-
-  int payload_size = std::min(MTU, (int)total_size - offset);
-  rtp_pkt_.resize(RTP_HDR_SIZE + JPEG_HDR_SIZE + payload_size);
-
-  // 填充RTP头部
-  RTPHeader* rtp_hdr = (RTPHeader*)rtp_pkt_.data();
-  memset(rtp_hdr, 0, RTP_HDR_SIZE);
-  rtp_hdr->version = 2;
-  rtp_hdr->payload_type = 26; // 静态JPEG类型
-  rtp_hdr->marker = (offset + payload_size == total_size) ? 1 : 0;
-  rtp_hdr->seq_no = htons(seq_no_++);
-  rtp_hdr->timestamp = htonl(timestamp_);
-  rtp_hdr->ssrc = htonl(0x12345678); // 随机SSRC[citation:12]
-
-  // 填充JPEG头部
-  JPEGHeader* jpeg_hdr = (JPEGHeader*)(rtp_pkt_.data() + RTP_HDR_SIZE);
-  jpeg_hdr->type_specific = 0;
-  jpeg_hdr->jpeg_type = 0;    // Baseline JPEG
-  jpeg_hdr->q = 0;            // 默认量化表
-  jpeg_hdr->width = 640 / 8;  // 80
-  jpeg_hdr->height = 480 / 8; // 60
-  uint32_t offset_be = htonl(offset << 8); // 转换为24位
-  memcpy(jpeg_hdr->offset, ((uint8_t*)&offset_be) + 1, 3); // 取后3字节
-
-  // 拷贝JPEG数据
-  memcpy(rtp_pkt_.data() + RTP_HDR_SIZE + JPEG_HDR_SIZE,
-        jpeg_data_.data() + offset, payload_size);
-
-  return offset + payload_size;
 }
 
 bool VideoPublisher::publish(uint8_t* data, int dataLen) {
@@ -156,6 +114,7 @@ void* VideoPublisher::runThread(void* arg) {
     dds_sleepfor(DDS_MSECS (100));
   }
 
+  printf("subscriber is online\n");
   while (true) {
     if (!self->capture()) {
       printf("grab image failed.\n");
@@ -168,14 +127,8 @@ void* VideoPublisher::runThread(void* arg) {
       continue;
     }
 
-    int offset = 0;
-    while (offset < self->jpeg_data_.size()) {
-      offset = self->rtpPack(offset);
-      self->publish(self->rtp_pkt_.data(), self->rtp_pkt_.size());
-      self->timestamp_ += TS_INC;
-    }
-
-    dds_sleepfor(DDS_MSECS(1));
+    self->publish(self->jpeg_data_.data(), self->jpeg_data_.size());
+    dds_sleepfor(DDS_MSECS (1));
   }
   return NULL;
 }

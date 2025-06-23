@@ -19,11 +19,11 @@ public:
 
   void run();
 
-private:
   void decode();
+  void* samples[1];
+  video_Frame* frame_;
 
-  video_Frame *frame_;
-
+private:
   dds_entity_t participant_;
   dds_entity_t topic_;
   dds_entity_t reader_;

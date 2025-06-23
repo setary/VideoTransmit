@@ -3,13 +3,32 @@
 
 #include "subscriber.h"
 
+uint64_t count = 0;
+void on_data_available(dds_entity_t reader, void* arg)
+{
+    VideoSubscriber* self = (VideoSubscriber*)arg;
+    dds_sample_info_t infos[1];
+    dds_return_t rc;
+
+
+    rc = dds_take(reader, self->samples, infos, 1, 1);
+    if (rc < 0) {
+        printf("Take failed: %s\n", dds_strretcode(-rc));
+    }
+    else if ((rc > 0) && (infos[0].valid_data)) {
+        self->frame_ = (video_Frame*)self->samples[0];
+        self->decode();
+    }
+}
+
 
 VideoSubscriber::VideoSubscriber() {
-
+    samples[0] = video_Frame__alloc();
 }
 
 VideoSubscriber::~VideoSubscriber() {
   disable();
+  video_Frame_free(samples[0], DDS_FREE_ALL);
 }
 
 bool VideoSubscriber::enable() {
@@ -27,7 +46,15 @@ bool VideoSubscriber::enable() {
 
   dds_qos_t *qos = dds_create_qos();
   dds_qset_reliability (qos, DDS_RELIABILITY_RELIABLE, DDS_SECS(10));
-  reader_ = dds_create_reader (participant_, topic_, qos, NULL);
+
+  /* 创建监听器并设置回调 */
+  dds_listener_t* listener = dds_create_listener(NULL);
+  dds_lset_data_available_arg(listener, on_data_available, (void*)this, true);
+  //dds_set_listener(reader_, listener);
+  printf("in this: %p\n", this);
+
+
+  reader_ = dds_create_reader (participant_, topic_, qos, listener);
   if (reader_ < 0) {
     dds_delete_qos(qos);
     printf("dds_create_reader: %s\n", dds_strretcode(-reader_));
@@ -48,22 +75,14 @@ bool VideoSubscriber::disable() {
 }
 
 void VideoSubscriber::decode() {
-  std::vector<char> frame(frame_->frame_bytes._buffer, frame_->frame_bytes._buffer + frame_->frame_bytes._length);
-  cv::Mat img = cv::imdecode(cv::Mat(frame), CV_LOAD_IMAGE_COLOR); // decode
-  cv::imshow("image", img);
-  cv::waitKey(30);
-
-  // image write
-  char name[64];
-  sprintf(name, "decode_image.ipg");
-  std::vector<int> quality;
-  quality[0] = cv::IMWRITE_JPEG_QUALITY;
-  quality[1] = 50;
-  imwrite(name, img, quality);
+    std::vector<char> frame(frame_->frame_bytes._buffer, frame_->frame_bytes._buffer + frame_->frame_bytes._length);
+    cv::Mat img = cv::imdecode(cv::Mat(frame), CV_LOAD_IMAGE_COLOR); // decode
+    cv::imshow("image", img);
+    cv::waitKey(30);
 }
 
 void VideoSubscriber::run() {
-  void *samples[1];
+  /*void *samples[1];
   samples[0] = video_Frame__alloc();
   dds_sample_info_t infos[1];
   while (true) {
@@ -73,11 +92,16 @@ void VideoSubscriber::run() {
     }
 
     if ((rc > 0) && (infos[0].valid_data)) {
+        printf("recv a frame\n");
       frame_ = (video_Frame*) samples[0];
       decode();
     } else {
       dds_sleepfor (DDS_MSECS(100));
     }
-  }
-  video_Frame_free(samples[0], DDS_FREE_ALL);
+    video_Frame_free(samples[0], DDS_FREE_ALL);
+  }*/
+  
+  while (true) {
+      dds_sleepfor(DDS_SECS(1));
+  };
 }
