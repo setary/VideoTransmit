@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <algorithm>
 
+#include "client.h"
 #include "publisher.h"
 
 static int deviceID = 0;          // 0 = open default camera
@@ -28,8 +29,25 @@ bool VideoPublisher::enable() {
   }
   printf("open camera success.\n");
 
-  cap_.set(cv::CAP_PROP_FRAME_WIDTH, 640);
-  cap_.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
+  std::string ip;
+  int port = 0;
+  while (!getPeerAddr("publisher", ip, port)) {
+    printf("get peer addr failed, try again.\n");
+    dds_sleepfor(DDS_SECS (1));
+  }
+  char config[1024];
+  memset(config, 0, sizeof(config));
+  sprintf(config, "<CycloneDDS><Domain Id=\"any\">"
+      "<General>"
+      "<AllowMulticast>false</AllowMulticast>"
+      "<MaxMessageSize>65500B</MaxMessageSize>"
+      "</General>"
+      "<Discovery>"
+      "<ParticipantIndex>0</ParticipantIndex>"
+      "<Peers> < Peer Address = \"%s:%d\" / > < / Peers>"
+      "</Discovery>"
+      "</Domain></CycloneDDS>", ip.c_str(), port);
+  domain_ = dds_create_domain(DDS_DOMAIN_DEFAULT, config);
 
   participant_ = dds_create_participant(DDS_DOMAIN_DEFAULT, NULL, NULL);
   if (participant_ < 0) {
@@ -59,6 +77,7 @@ bool VideoPublisher::disable() {
 
   printf("release the camera capture.\n");
   cap_.release();
+  return true;
 }
 
 bool VideoPublisher::capture() {
@@ -155,6 +174,7 @@ void VideoPublisher::runThread() {
     dds_sleepfor (DDS_MSECS (100));
   }
 
+  printf("subscriber online\n");
   while (true) {
     if (!capture()) {
       printf("grab image failed.\n");

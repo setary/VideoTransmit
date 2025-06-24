@@ -5,6 +5,7 @@
 
 
 int main(int argc, char** argv) {
+  dds_set_log_mask(DDS_LC_ALL);
   int type = 1; // 1 is publisher; 2 is subscriber
   if (argc) {
     if (strcmp("publisher", argv[1]) == 0) {

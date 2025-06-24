@@ -36,6 +36,7 @@ private:
 
   video_Frame frame_;
 
+  dds_entity_t domain_;
   dds_entity_t participant_;
   dds_entity_t topic_;
   dds_entity_t writer_;

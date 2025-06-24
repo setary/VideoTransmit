@@ -17,15 +17,12 @@ static std::string peer_nat_ip;
 static int peer_nat_port = 0;
 
 void parseAddress(char* buffer, int buffer_len) {
-    char *token = strtok(buffer, " ");
-    if (token != NULL) {
-        token = strtok(NULL, " ");
-        peer_nat_ip = token;
-        if (token != NULL) {
-            token = strtok(NULL, " ");
-            peer_nat_port = atoi(token);
-        }
-    }
+    char name[64];
+    char ip[32];
+    int port = 0;
+    sscanf(buffer, "%s %s %d", name, ip, &port);
+    peer_nat_ip = ip;
+    peer_nat_port = port;
 }
 
 bool init(const std::string& client_name) {

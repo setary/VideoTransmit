@@ -32,4 +32,4 @@ target_compile_definitions(VideoTransmit PRIVATE
 
 target_link_libraries(VideoTransmit cycloneddsidl ddsc
     ${OpenCV_LIBRARIES}
-    -lpthread -ldl)
+    -lpthread -ldl ws2_32)

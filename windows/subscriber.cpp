@@ -1,6 +1,7 @@
 #include <thread>
 #include <vector>
 
+#include "client.h"
 #include "subscriber.h"
 
 uint64_t count = 0;
@@ -32,6 +33,26 @@ VideoSubscriber::~VideoSubscriber() {
 }
 
 bool VideoSubscriber::enable() {
+    std::string ip;
+    int port = 0;
+    while (!getPeerAddr("subscriber", ip, port)) {
+        printf("get peer addr failed, try again.\n");
+        dds_sleepfor(DDS_SECS(1));
+    }
+
+    char config[1024];
+    memset(config, 0, sizeof(config));
+    sprintf(config, "<CycloneDDS><Domain Id=\"any\">"
+        "<General>"
+        "<AllowMulticast>false</AllowMulticast>"
+        "<MaxMessageSize>65500B</MaxMessageSize>"
+        "</General>"
+        "<Discovery>"
+        "<ParticipantIndex>0</ParticipantIndex>"
+        "<Peers> < Peer Address = \"%s:%d\" / > < / Peers>"
+        "</Discovery>"
+        "</Domain></CycloneDDS>", ip.c_str(), port);
+    domain_ = dds_create_domain(DDS_DOMAIN_DEFAULT, config);
   participant_ = dds_create_participant (DDS_DOMAIN_DEFAULT, NULL, NULL);
   if (participant_ < 0) {
     printf("dds_create_participant: %s\n", dds_strretcode(-participant_));
@@ -100,7 +121,7 @@ void VideoSubscriber::run() {
     }
     video_Frame_free(samples[0], DDS_FREE_ALL);
   }*/
-  
+
   while (true) {
       dds_sleepfor(DDS_SECS(1));
   };
