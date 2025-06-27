@@ -33,12 +33,37 @@ VideoSubscriber::~VideoSubscriber() {
 }
 
 bool VideoSubscriber::enable() {
-    std::string ip;
-    int port = 0;
-    while (!getPeerAddr("subscriber", ip, port)) {
-        printf("get peer addr failed, try again.\n");
-        dds_sleepfor(DDS_SECS(1));
+    dig_hole("sub_data");
+    dig_hole("sub_meta");
+    std::string pub_data_ip;
+    int pub_data_port = 0;
+    while (!get_address_by_name("pub_data", pub_data_ip, pub_data_port)) {
+      printf("get peer addr failed, try again.\n");
+      dds_sleepfor(DDS_SECS (1));
+      dig_hole("sub_data");
+      dig_hole("sub_meta");
     }
+    printf("get pub_data ip: %s, port: %d\n", pub_data_ip.c_str(), pub_data_port);
+
+    std::string pub_meta_ip;
+    int pub_meta_port = 0;
+    while (!get_address_by_name("pub_meta", pub_meta_ip, pub_meta_port)) {
+      printf("get peer addr failed, try again.\n");
+      dds_sleepfor(DDS_SECS (1));
+      dig_hole("sub_data");
+      dig_hole("sub_meta");
+    }
+    printf("get pub_meta ip: %s, port: %d\n", pub_meta_ip.c_str(), pub_meta_port);
+
+    std::string sub_data_ip;
+    int sub_data_port = 0;
+    while (!get_address_by_name("sub_data", sub_data_ip, sub_data_port)) {
+      printf("get peer addr failed, try again.\n");
+      dds_sleepfor(DDS_SECS (1));
+      dig_hole("sub_data");
+      dig_hole("sub_meta");
+    }
+    printf("get sub_data ip: %s, port: %d\n", sub_data_ip.c_str(), sub_data_port);
 
     char config[1024];
     memset(config, 0, sizeof(config));
@@ -51,7 +76,7 @@ bool VideoSubscriber::enable() {
         "<ParticipantIndex>0</ParticipantIndex>"
         "<Peers> < Peer Address = \"%s:%d\" / > < / Peers>"
         "</Discovery>"
-        "</Domain></CycloneDDS>", ip.c_str(), port);
+        "</Domain></CycloneDDS>", pub_data_ip.c_str(), pub_data_port);
     domain_ = dds_create_domain(DDS_DOMAIN_DEFAULT, config);
   participant_ = dds_create_participant (DDS_DOMAIN_DEFAULT, NULL, NULL);
   if (participant_ < 0) {
@@ -74,7 +99,6 @@ bool VideoSubscriber::enable() {
   //dds_set_listener(reader_, listener);
   printf("in this: %p\n", this);
 
-
   reader_ = dds_create_reader (participant_, topic_, qos, listener);
   if (reader_ < 0) {
     dds_delete_qos(qos);
@@ -87,6 +111,7 @@ bool VideoSubscriber::enable() {
 }
 
 bool VideoSubscriber::disable() {
+  fill_all_holes();
   dds_return_t rc = dds_delete (participant_);
   if (rc != DDS_RETCODE_OK) {
     printf("dds_delete: %s\n", dds_strretcode(-rc));

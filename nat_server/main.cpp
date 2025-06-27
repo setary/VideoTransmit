@@ -8,9 +8,8 @@
 #include <string>
 #include <chrono>
 
-#define CLIENT_PORT 50001      // 客户端的端口
-#define BUF_SIZE 1024          // 缓冲区大小(字节)
-#define KEEP_ALIVE_INTERVAL 20 // 保活包发送间隔
+#define CLIENT_PORT 50001
+#define BUF_SIZE 1024
 
 std::unordered_map<std::string, std::string> nat_addrs;
 
@@ -20,13 +19,11 @@ int main() {
     SOCKET server_sock_fd;
     struct sockaddr_in server_addr;
 
-    //检查协议栈
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
         printf("Failed to load Winsock.\n");
         return -1;
     }
 
-    //建立监听socket
     server_sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (server_sock_fd == INVALID_SOCKET) {
         printf("socket() failed:%d\n", WSAGetLastError());
@@ -58,12 +55,17 @@ int main() {
         char nat_msg[BUF_SIZE];
         memset(nat_msg, 0, BUF_SIZE);
         sprintf(nat_msg, "%s %s %d", buffer, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+        std::string client_name(buffer, len+1);
+        nat_addrs[client_name] = std::string(nat_msg);
 
+        std::string reply;
         for (auto it = nat_addrs.begin(); it != nat_addrs.end(); it++) {
-            if (it->first == buffer)
-                continue;
-            sendto(server_sock_fd, it->second.c_str(), it->second.length(), 0, (struct sockaddr*)&client_addr, client_addr_len);
+            if (it != nat_addrs.begin()) {
+                reply += " ";
+            }
+            reply += it->second;
         }
+        sendto(server_sock_fd, reply.c_str(), reply.length(), 0, (struct sockaddr*)&client_addr, client_addr_len);
     }
     closesocket(server_sock_fd);
     WSACleanup();
