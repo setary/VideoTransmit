@@ -22,23 +22,25 @@ std::unordered_map<std::string, int> client_sock_fds;
 
 void parseAddress(char* buffer, int buffer_len) {
     std::string str(buffer, buffer_len);
-    int start_pos = 0;
-    int end_pos = str.find(' ', start_pos);
-    while (end_pos != std::string::npos) {
+    int start_pos = 0, end_pos;
+    while ((end_pos = str.find(' ', start_pos)) != std::string::npos) {
         std::string client_name = str.substr(start_pos, end_pos - start_pos);
+
         start_pos = end_pos + 1;
         end_pos = str.find(' ', start_pos);
+	std::string ip = str.substr(start_pos, end_pos - start_pos);
 
-        std::string ip = str.substr(start_pos, end_pos - start_pos);
         start_pos = end_pos + 1;
         end_pos = str.find(' ', start_pos);
-
         std::string port = str.substr(start_pos, end_pos - start_pos);
-        start_pos = end_pos + 1;
-        end_pos = str.find(' ', start_pos);
 
-        NatAddress nat_addr{.ip=ip, .port=std::stoi(port)};
+        NatAddress nat_addr;
+        nat_addr.ip = ip;
+        nat_addr.port = std::stoi(port);
         nat_addrs[client_name] = nat_addr;
+
+	if (end_pos == std::string::npos) break;
+        start_pos = end_pos + 1;
     }
 }
 

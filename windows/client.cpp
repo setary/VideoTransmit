@@ -19,29 +19,35 @@ std::unordered_map<std::string, SOCKET> client_sock_fds;
 
 void parseAddress(char* buffer, int buffer_len) {
     std::string str(buffer, buffer_len);
-    int start_pos = 0;
-    int end_pos = str.find(' ', start_pos);
-    while (end_pos != std::string::npos) {
+    int start_pos = 0, end_pos;
+    while ((end_pos = str.find(' ', start_pos)) != std::string::npos) {
         std::string client_name = str.substr(start_pos, end_pos - start_pos);
+
         start_pos = end_pos + 1;
         end_pos = str.find(' ', start_pos);
-
         std::string ip = str.substr(start_pos, end_pos - start_pos);
-        start_pos = end_pos + 1;
-        end_pos = str.find(' ', start_pos);
 
-        std::string port = str.substr(start_pos, end_pos - start_pos);
         start_pos = end_pos + 1;
         end_pos = str.find(' ', start_pos);
+        std::string port = str.substr(start_pos, end_pos - start_pos);
 
         NatAddress nat_addr;
         nat_addr.ip = ip;
         nat_addr.port = std::stoi(port);
         nat_addrs[client_name] = nat_addr;
+
+        if (end_pos == std::string::npos) break;
+        start_pos = end_pos + 1;
     }
 }
 
 bool dig_hole(const std::string& client_name) {
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        printf("failed to load winsock.\n");
+        return false;
+    }
+
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
@@ -52,14 +58,16 @@ bool dig_hole(const std::string& client_name) {
     auto it = client_sock_fds.find(client_name);
     if (it == client_sock_fds.end()) {
         client_sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
-        if (client_sock_fd < 0)
+        if (client_sock_fd == INVALID_SOCKET)
         {
             printf("create socket failed, errno:%d\n", WSAGetLastError());
             return false;
         }
+        
         client_sock_fds[client_name] = client_sock_fd;
-    } else {
-        client_sock_fd = it->second;
+    }
+    else {
+       client_sock_fd = it->second;
     }
 
     int addr_len = sizeof(struct sockaddr_in);
