@@ -27,13 +27,38 @@ bool VideoPublisher::enable(int camera_id) {
   }
   printf("open camera success.\n");
 
-  std::string ip;
-  int port = 0;
-  while (!getPeerAddr("publisher", ip, port)) {
+  dig_hole("pub_data");
+  dig_hole("pub_meta");
+  std::string sub_data_ip;
+  int sub_data_port = 0;
+  while (!get_address_by_name("sub_data", sub_data_ip, sub_data_port)) {
     printf("get peer addr failed, try again.\n");
     dds_sleepfor(DDS_SECS (1));
-
+    dig_hole("pub_data");
+    dig_hole("pub_meta");
   }
+  printf("get sub_data ip: %s, port: %d\n", sub_data_ip.c_str(), sub_data_port);
+
+  std::string sub_meta_ip;
+  int sub_meta_port = 0;
+  while (!get_address_by_name("sub_meta", sub_meta_ip, sub_meta_port)) {
+    printf("get peer addr failed, try again.\n");
+    dds_sleepfor(DDS_SECS (1));
+    dig_hole("pub_data");
+    dig_hole("pub_meta");
+  }
+  printf("get sub_meta ip: %s, port: %d\n", sub_meta_ip.c_str(), sub_meta_port);
+
+  std::string pub_data_ip;
+  int pub_data_port = 0;
+  while (!get_address_by_name("pub_data", pub_data_ip, pub_data_port)) {
+    printf("get peer addr failed, try again.\n");
+    dds_sleepfor(DDS_SECS (1));
+    dig_hole("pub_data");
+    dig_hole("pub_meta");
+  }
+  printf("get pub_data ip: %s, port: %d\n", pub_data_ip.c_str(), pub_data_port);
+
   char config[1024];
   memset(config, 0, sizeof(config));
   sprintf(config, "<CycloneDDS><Domain Id=\"any\">"
@@ -45,7 +70,7 @@ bool VideoPublisher::enable(int camera_id) {
       "<ParticipantIndex>0</ParticipantIndex>"
       "<Peers> < Peer Address = \"%s:%d\" / > < / Peers>"
       "</Discovery>"
-      "</Domain></CycloneDDS>", ip.c_str(), port);
+      "</Domain></CycloneDDS>", sub_data_ip.c_str(), sub_data_port);
   domain_ = dds_create_domain(DDS_DOMAIN_DEFAULT, config);
 
   participant_ = dds_create_participant(DDS_DOMAIN_DEFAULT, NULL, NULL);
@@ -71,6 +96,7 @@ bool VideoPublisher::enable(int camera_id) {
 }
 
 bool VideoPublisher::disable() {
+  fill_all_holes();
   dds_return_t status = dds_delete (participant_);
   if (status < 0)
     printf("dds_delete: %s\n", dds_strretcode(-status));

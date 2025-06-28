@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <map>
 #include "client.h"
 
 #define SERVER_PORT 50001            // 公网服务器的端口
@@ -12,36 +13,57 @@
 #define BUF_SIZE 1024                // 缓冲区大小(字节)
 #define KEEP_ALIVE_INTERVAL 20       // 保活包发送间隔
 
-static bool is_init = false;
-static std::string peer_nat_ip;
-static int peer_nat_port = 0;
+struct NatAddress {
+    std::string ip;
+    int port;
+};
+std::map<std::string, NatAddress> nat_addrs;
+std::map<std::string, int> client_sock_fds;
 
 void parseAddress(char* buffer, int buffer_len) {
-    char name[64];
-    char ip[32];
-    int port = 0;
-    sscanf(buffer, "%s %s %d", name, ip, &port);
-    peer_nat_ip = ip;
-    peer_nat_port = port;
+    std::string str(buffer, buffer_len);
+    int start_pos = 0, end_pos;
+    while ((end_pos = str.find(' ', start_pos)) != std::string::npos) {
+        std::string client_name = str.substr(start_pos, end_pos - start_pos);
+
+        start_pos = end_pos + 1;
+        end_pos = str.find(' ', start_pos);
+	    std::string ip = str.substr(start_pos, end_pos - start_pos);
+
+        start_pos = end_pos + 1;
+        end_pos = str.find(' ', start_pos);
+        std::string port = str.substr(start_pos, end_pos - start_pos);
+
+        NatAddress nat_addr;
+        nat_addr.ip = ip;
+        nat_addr.port = atoi(port.c_str());
+        nat_addrs[client_name] = nat_addr;
+
+	if (end_pos == std::string::npos) break;
+        start_pos = end_pos + 1;
+    }
 }
 
-bool init(const std::string& client_name) {
-    if (is_init) {
-        return true;
-    }
-
-    int client_sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (client_sock_fd < 0)
-    {
-        printf("create socket failed, errno:%d, error:%s\n", errno, strerror(errno));
-        return false;
-    }
-
+bool dig_hole(const std::string& client_name) {
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = inet_addr(SERVER_ADDR);
     server_addr.sin_port = htons(SERVER_PORT);
+
+    int client_sock_fd = 0;
+    std::map<std::string, int>::iterator it = client_sock_fds.find(client_name);
+    if (it == client_sock_fds.end()) {
+        client_sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (client_sock_fd < 0)
+        {
+            printf("create socket failed, errno:%d, error:%s\n", errno, strerror(errno));
+            return false;
+        }
+        client_sock_fds[client_name] = client_sock_fd;
+    } else {
+        client_sock_fd = it->second;
+    }
 
     socklen_t addr_len = sizeof(struct sockaddr_in);
     ssize_t sent_bytes = sendto(client_sock_fd,
@@ -69,16 +91,35 @@ bool init(const std::string& client_name) {
     buffer[n] = '\0';
     printf("dig hole, recv from server: %s\n", buffer);
     parseAddress(buffer, n+1);
-    is_init = true;
     return true;
 }
 
-bool getPeerAddr(const std::string& client_name, std::string& ip, int& port) {
-    if (!is_init) {
-        init(client_name);
+bool fill_hole(const std::string& client_name) {
+    std::map<std::string, int>::iterator it = client_sock_fds.find(client_name);
+    if (it != client_sock_fds.end()) {
+        close(it->second);
+        client_sock_fds.erase(it);
+        return true;
     }
+    return false;
+}
 
-    ip = peer_nat_ip;
-    port = peer_nat_port;
+bool fill_all_holes() {
+    std::map<std::string, int>::iterator it;
+    for (it = client_sock_fds.begin(); it != client_sock_fds.end(); it++) {
+        close(it->second);
+    }
+    client_sock_fds.clear();
+    return true;
+}
+
+bool get_address_by_name(const std::string& client_name, std::string& ip, int& port) {
+    std::map<std::string, NatAddress>::iterator it = nat_addrs.find(client_name);
+    if (it == nat_addrs.end()) {
+        printf("client %s not exist in map, try again\n", client_name.c_str());
+        return false;
+    }
+    ip = it->second.ip;
+    port = it->second.port;
     return true;
 }
