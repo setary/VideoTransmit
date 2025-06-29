@@ -12,6 +12,7 @@ static const uint32_t TS_INC = 90000 / 30; // 3000 (90kHz时钟)
 
 
 VideoPublisher::VideoPublisher() {
+  memset(&frame_, 0, sizeof(video_Frame));
 }
 
 VideoPublisher::~VideoPublisher() {
@@ -66,8 +67,8 @@ bool VideoPublisher::enable(int camera_id) {
       "<General>"
       "<AllowMulticast>false</AllowMulticast>"
       "<EnableMulticastLoopback>false</EnableMulticastLoopback>"
-      "<ExternalNetworkAddress>%s</ExternalNetworkAddress>"
-      "<ExternalNetworkMask>255.255.255.0</ExternalNetworkMask>"
+      //"<ExternalNetworkAddress>%s</ExternalNetworkAddress>"
+      //"<ExternalNetworkMask>255.255.255.0</ExternalNetworkMask>"
       "</General>"
       "<Discovery>"
       "<DefaultMulticastAddress>none</DefaultMulticastAddress>"
@@ -80,7 +81,7 @@ bool VideoPublisher::enable(int camera_id) {
         "<UnicastMetaOffset>%d</UnicastMetaOffset>"
       "</Ports>"
       "</Discovery>"
-      "</Domain></CycloneDDS>", pub_meta_ip.c_str(), sub_meta_ip.c_str(), sub_meta_port,
+      "</Domain></CycloneDDS>", /*pub_meta_ip.c_str(),*/ sub_meta_ip.c_str(), sub_meta_port,
       base, UnicastDataOffset, UnicastMetaOffset);
   domain_ = dds_create_domain(DDS_DOMAIN_DEFAULT, config);
 
@@ -138,21 +139,33 @@ bool VideoPublisher::encode() {
 }
 
 bool VideoPublisher::publish(uint8_t* data, int dataLen) {
-  frame_.frame_bytes._buffer = (char*)dds_alloc (dataLen);
-  frame_.frame_bytes._length = dataLen;
-  frame_.frame_bytes._release = true;
-  for (int i = 0; i < dataLen; i++) {
-    frame_.frame_bytes._buffer[i] = data[i];
+  if (frame_.frame_bytes._buffer != NULL && !frame_.frame_bytes._release) {
+    dds_free(frame_.frame_bytes._buffer);
   }
 
+  // 分配新的缓冲区并复制数据
+  frame_.frame_bytes._buffer = (char*)dds_alloc(dataLen);
+  frame_.frame_bytes._length = dataLen;
+  frame_.frame_bytes._release = true; // 让 DDS 负责释放内存
+  
+  memcpy(frame_.frame_bytes._buffer, data, dataLen);
+
+  // 执行写入操作
   dds_return_t status = dds_write(writer_, &frame_);
   if (status != DDS_RETCODE_OK) {
-    printf("dds_write: %s\n", dds_strretcode(-status));
+    printf("dds_write failed: %s\n", dds_strretcode(-status));
+    
+    // 写入失败时释放内存
+    if (frame_.frame_bytes._release) {
+      dds_free(frame_.frame_bytes._buffer);
+      frame_.frame_bytes._buffer = NULL;
+    }
+    return false;
   } else {
     frame_.frame_id++;
+    return true;
   }
-  dds_free (frame_.frame_bytes._buffer);
-  return true;
+
 }
 
 void* VideoPublisher::runThread(void* arg) {

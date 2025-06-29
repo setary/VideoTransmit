@@ -18,6 +18,6 @@ target_compile_definitions(VideoTransmit PRIVATE
     $<$<BOOL:${INTERNAL_DEBUG}>:__INTERNALDEBUG> # Internal debug activated.
 )
 
-target_link_libraries(VideoTransmit ddsc cycloneddsidl
+target_link_libraries(VideoTransmit ddsc
                       opencv_highgui opencv_videoio opencv_core opencv_imgcodecs opencv_imgproc
                       -lpthread -ldl)
