@@ -1,6 +1,8 @@
 #include <thread>
 #include <vector>
 
+#include "opencv2/highgui.hpp"
+
 #include "client.h"
 #include "subscriber.h"
 
@@ -134,6 +136,8 @@ bool VideoSubscriber::disable() {
 void VideoSubscriber::decode() {
     std::vector<char> frame(frame_->frame_bytes._buffer, frame_->frame_bytes._buffer + frame_->frame_bytes._length);
     cv::Mat img = cv::imdecode(cv::Mat(frame), CV_LOAD_IMAGE_COLOR); // decode
+    cv::namedWindow("image", cv::WindowFlags::WINDOW_NORMAL);
+    cv::resizeWindow("image", 1280, 720);
     cv::imshow("image", img);
     cv::waitKey(30);
 }
