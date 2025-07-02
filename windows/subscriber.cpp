@@ -105,6 +105,8 @@ bool VideoSubscriber::enable() {
 
     dds_qos_t* qos = dds_create_qos();
     dds_qset_reliability(qos, DDS_RELIABILITY_RELIABLE, DDS_SECS(10));
+    dds_qset_history(qos, DDS_HISTORY_KEEP_ALL, 0);
+    dds_qset_resource_limits(qos, 300, DDS_LENGTH_UNLIMITED, DDS_LENGTH_UNLIMITED);
 
     /* 创建监听器并设置回调 */
     dds_listener_t* listener = dds_create_listener(NULL);

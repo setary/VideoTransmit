@@ -97,7 +97,12 @@ bool VideoPublisher::enable(int camera_id) {
     return false;
   }
 
-  writer_ = dds_create_writer(participant_, topic_, NULL, NULL);
+  dds_qos_t* qos = dds_create_qos();
+  dds_qset_reliability(qos, DDS_RELIABILITY_RELIABLE, DDS_SECS(10));
+  dds_qset_history(qos, DDS_HISTORY_KEEP_ALL, 0);
+  dds_qset_resource_limits(qos, 300, DDS_LENGTH_UNLIMITED, DDS_LENGTH_UNLIMITED);
+
+  writer_ = dds_create_writer(participant_, topic_, qos, NULL);
   if (writer_ < 0) {
     printf("dds_create_writer: %s\n", dds_strretcode(-writer_));
     return false;
