@@ -1,3 +1,5 @@
+#include <windows.h>
+#include <stdint.h>
 #include <thread>
 #include <vector>
 
@@ -6,6 +8,32 @@
 #include "client.h"
 #include "subscriber.h"
 
+#pragma pack(push, 1)
+typedef struct RTPHeader1 {
+    uint8_t version : 2;        // 协议版本（2）
+    uint8_t padding : 1;        // 塌余填充
+    uint8_t extension : 1;      // 扩展标识
+    uint8_t csrc_count : 4;     // 贡献源数量
+    uint8_t marker : 1;         // 完整帧标记
+    uint8_t payload_type : 7;   // 负载类型（JPEG=26）
+    uint16_t seq_no;          // 网络字节序
+    uint32_t timestamp;       // 时间戳（90kHz）
+    uint32_t ssrc;            // 同步源标识
+} RTPHeader1;
+
+
+struct JPEGHeader {
+    uint8_t type_specific;    // 固定为0
+    uint8_t jpeg_type;        // Baseline=0
+    uint8_t q;                // 量化因子（0=默认）
+    uint8_t width;            // 原始宽/8（640=80）
+    uint8_t height;           // 原始高/8（480=60）
+    uint8_t offset[3];        // 分片偏移量（24位）
+};
+#pragma pack(pop)
+
+const int JPEG_HDR_SIZE = sizeof(JPEGHeader);
+const int RTP_HDR_SIZE = sizeof(RTPHeader1);
 uint64_t count = 0;
 void on_data_available(dds_entity_t reader, void* arg)
 {
@@ -23,7 +51,6 @@ void on_data_available(dds_entity_t reader, void* arg)
         self->decode();
     }
 }
-
 
 VideoSubscriber::VideoSubscriber() {
     samples[0] = video_Frame__alloc();
@@ -74,14 +101,12 @@ bool VideoSubscriber::enable() {
         "<General>"
         "<AllowMulticast>false</AllowMulticast>"
         "<EnableMulticastLoopback>false</EnableMulticastLoopback>"
-        //"<ExternalNetworkAddress>%s</ExternalNetworkAddress>"
-        //"<ExternalNetworkMask>255.255.255.0</ExternalNetworkMask>"
         "</General>"
         "<Discovery>"
         "<DefaultMulticastAddress>none</DefaultMulticastAddress>"
         "<SPDPMulticastAddress>none</SPDPMulticastAddress>"
         "<ParticipantIndex>0</ParticipantIndex>"
-        "<Peers> < Peer Address = \"%s:%d\" / > < / Peers>"
+        "<Peers><Peer Address=\"%s:%d\"/></Peers>"
         "<Ports>"
         "<Base>%d</Base>"
         "<UnicastDataOffset>%d</UnicastDataOffset>"
@@ -136,8 +161,23 @@ bool VideoSubscriber::disable() {
 }
 
 void VideoSubscriber::decode() {
-    std::vector<char> frame(frame_->frame_bytes._buffer, frame_->frame_bytes._buffer + frame_->frame_bytes._length);
-    cv::Mat img = cv::imdecode(cv::Mat(frame), CV_LOAD_IMAGE_COLOR); // decode
+    //std::vector<char> frame(frame_->frame_bytes._buffer, frame_->frame_bytes._buffer + frame_->frame_bytes._length);
+
+    // 解析rtp头
+    RTPHeader1* rtp_hdr;
+    rtp_hdr  = (RTPHeader1*)(frame_->frame_bytes._buffer);
+    if (rtp_hdr->payload_type != 26) {
+        printf("encode type is not jpeg, drop it!\n");
+        return;
+    }
+
+    int totalLen = frame_->frame_bytes._length;
+    int dataLen = totalLen - RTP_HDR_SIZE - JPEG_HDR_SIZE;
+    jpeg_data_.resize(dataLen);
+    memcpy(jpeg_data_.data(), frame_->frame_bytes._buffer + RTP_HDR_SIZE + JPEG_HDR_SIZE, dataLen);
+
+    // 解析显示图片
+    cv::Mat img = cv::imdecode(cv::Mat(jpeg_data_), CV_LOAD_IMAGE_COLOR); // decode
     cv::namedWindow("image", cv::WindowFlags::WINDOW_NORMAL);
     cv::resizeWindow("image", 1280, 720);
     cv::imshow("image", img);
