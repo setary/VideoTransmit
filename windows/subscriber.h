@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdio.h>
 
 #include <opencv2/core.hpp>
@@ -22,6 +24,7 @@ public:
   void decode();
   void* samples[1];
   video_Frame* frame_;
+  std::vector<uint8_t> jpeg_data_;
 
 private:
   dds_entity_t domain_;
