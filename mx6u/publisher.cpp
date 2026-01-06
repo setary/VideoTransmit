@@ -10,6 +10,27 @@
 static const int MTU = 1400;
 static const uint32_t TS_INC = 90000 / 30; // 3000 (90kHz时钟)
 
+struct RTPHeader {
+    uint8_t version:2;        // 协议版本（2）
+    uint8_t padding:1;        // 塌余填充
+    uint8_t extension:1;      // 扩展标识
+    uint8_t csrc_count:4;     // 贡献源数量
+    uint8_t marker:1;         // 完整帧标记
+    uint8_t payload_type:7;   // 负载类型（JPEG=26）
+    uint16_t seq_no;          // 网络字节序
+    uint32_t timestamp;       // 时间戳（90kHz）
+    uint32_t ssrc;            // 同步源标识
+} __attribute__((packed));
+
+
+struct JPEGHeader {
+    uint8_t type_specific;    // 固定为0
+    uint8_t jpeg_type;        // Baseline=0
+    uint8_t q;                // 量化因子（0=默认）
+    uint8_t width;            // 原始宽/8（640=80）
+    uint8_t height;           // 原始高/8（480=60）
+    uint8_t offset[3];        // 分片偏移量（24位）
+} __attribute__((packed));
 
 VideoPublisher::VideoPublisher() {
   memset(&frame_, 0, sizeof(video_Frame));
@@ -143,6 +164,38 @@ bool VideoPublisher::encode() {
   return true;
 }
 
+void VideoPublisher::rtpPack() {
+  const int JPEG_HDR_SIZE = sizeof(JPEGHeader);
+  const int RTP_HDR_SIZE = sizeof(RTPHeader);
+  uint32_t total_size = jpeg_data_.size();
+
+  rtp_pkt_.resize(RTP_HDR_SIZE + JPEG_HDR_SIZE + total_size);
+
+  // 填充RTP头部
+  RTPHeader* rtp_hdr = (RTPHeader*)rtp_pkt_.data();
+  memset(rtp_hdr, 0, RTP_HDR_SIZE);
+  rtp_hdr->version = 2;
+  rtp_hdr->payload_type = 26; // 静态JPEG类型
+  rtp_hdr->marker = 1;
+  rtp_hdr->seq_no = htons(seq_no_++);
+  rtp_hdr->timestamp = htonl(timestamp_);
+  rtp_hdr->ssrc = htonl(0x12345678); // 随机SSRC[citation:12]
+
+  // 填充JPEG头部
+  JPEGHeader* jpeg_hdr = (JPEGHeader*)(rtp_pkt_.data() + RTP_HDR_SIZE);
+  jpeg_hdr->type_specific = 0;
+  jpeg_hdr->jpeg_type = 0;    // Baseline JPEG
+  jpeg_hdr->q = 0;            // 默认量化表
+  jpeg_hdr->width = 640 / 8;  // 80
+  jpeg_hdr->height = 480 / 8; // 60
+  uint32_t offset_be = htonl(total_size << 8); // 转换为24位
+  memcpy(jpeg_hdr->offset, ((uint8_t*)&offset_be) + 1, 3); // 取后3字节
+
+  // 拷贝JPEG数据
+  memcpy(rtp_pkt_.data() + RTP_HDR_SIZE + JPEG_HDR_SIZE,
+        jpeg_data_.data(), total_size);
+}
+
 bool VideoPublisher::publish(uint8_t* data, int dataLen) {
   if (frame_.frame_bytes._buffer != NULL && !frame_.frame_bytes._release) {
     dds_free(frame_.frame_bytes._buffer);
@@ -205,7 +258,10 @@ void* VideoPublisher::runThread(void* arg) {
       continue;
     }
 
-    self->publish(self->jpeg_data_.data(), self->jpeg_data_.size());
+    self->rtpPack();
+    self->timestamp_ += TS_INC;
+
+    self->publish(self->rtp_pkt_.data(), self->rtp_pkt_.size());
     dds_sleepfor(DDS_MSECS (1));
   }
   return NULL;
