@@ -26,6 +26,8 @@ private:
 
   bool encode();
 
+  void rtpPack();
+
   bool publish(uint8_t* data, int dataLen);
 
   static void* runThread(void* arg);
@@ -33,6 +35,9 @@ private:
   cv::VideoCapture cap_;
   cv::Mat image_;
   std::vector<uint8_t> jpeg_data_;
+  std::vector<uint8_t> rtp_pkt_;
+  uint16_t seq_no_ = 0;
+  uint32_t timestamp_ = 0;
 
   video_Frame frame_;
 
